@@ -1,40 +1,5 @@
 var timeSheet =
 {
-  // deprecated
-  customerCol: 'M',
-  taskNumberColumn: 'E',
-  taskInfoColumn: 'K',
-  descriptionCol: 'E',
-
-  // The description to add to JIRA will be read from this col.
-  // The month related will be read from here.
-  monthCell: 'G1',
-  // The year will be read from here.
-  yearCell: 'H1',
-
-  // The following variables are the columns for the script to read the data from
-  // *Required: this will be the col for the pure task number
-  taskCol: 'M',
-  // *Required: the value of this coumn will be sent to jira as time spent
-  timeCol: 'I',
-  // *Required: this will be the col of the date of the current month and year.
-  // TODO: it will take the current month and current year yet, so it's no good for logging previous months!! Needs to be improved
-  dateCol: 'L',
-  // Optional: this will be col of start time. if you empty out it will skip it and use 9:00 AM GMT as a start time for every task
-  startCol: 'J',
-
-  // Recommended: this will be col of the output of this logger
-  loggedCol: 'O',
-
-  // The following variables required for the bluetel timesheet template.
-  // This is needed for the Bluetel timesheet template. This is going to be filled by the script.
-  bltDateCol: 'A',
-  bltProjectCol: 'B',
-  bltTaskCol: 'C',
-  bltTimeSpentCol: 'D',
-  bltDetailsCol: 'E',
-  bltOverTimeCol: 'F',
-
   onCustomEdit: function ()
   {
     this.sheet = SpreadsheetApp.getActiveSheet();
@@ -186,17 +151,6 @@ var timeSheet =
    */
   logPacktTime: function()
   {
-    // converting column letters to column numbers
-    var taskCol = dataHelper.letterToColumn(this.taskCol);
-    var timeCol = dataHelper.letterToColumn(this.timeCol);
-    var dateCol = dataHelper.letterToColumn(this.dateCol);
-    var loggedCol = dataHelper.letterToColumn(this.loggedCol);
-    var startCol = dataHelper.letterToColumn(this.startCol);
-
-    var bltTaskCol = dataHelper.letterToColumn(this.bltTaskCol);
-    var bltDetailsCol = dataHelper.letterToColumn(this.bltDetailsCol);
-    var projectCol = dataHelper.letterToColumn(this.bltProjectCol);
-
     if (dateCol === false || timeCol === false || taskCol === false) {
       if (loggedCol !== false ) {
         SpreadsheetApp.getActiveSheet().getActiveRange().getCell(i, loggedCol).setValue("One of the required fields wasn't set");
@@ -206,94 +160,120 @@ var timeSheet =
     }
 
     // Loop through the selected rows
-    var sheet = SpreadsheetApp.getActiveSheet();
-    var range = sheet.getActiveRange();
+    timeSheet.activeSheet = SpreadsheetApp.getActiveSheet();
+    timeSheet.activeRange = sheet.getActiveRange();
     var rowCount = range.getNumRows();
 
     for (var i = 1; i <= rowCount; i++) {
-      // grab cell to be used for writing and reading
-      var loggedCell = range.getCell(i, loggedCol);
-      var taskCell = range.getCell(i, taskCol);
-
-      // gather data
-      var issueKey = taskCell.getValue();
-      if (issueKey.indexOf("-") < 0) {
-        if (issueKey.length > 0 ) {
-          range.getCell(i, projectCol).setValue("Bluetel");
-        }
-        continue;
-      }
-      var title = taskTitle(issueKey);
-      var project = getProject(issueKey);
-
-      loggedCell.setValue("LOGGING "+issueKey);
-
-      // fill bluetel templatefields
-
-
-
-
-      // fill task info
-
-      range.getCell(i, bltTaskCol).setValue(issueKey+' '+title);
-
-      range.getCell(i, projectCol).setValue(project);
-
-      var taskBranch = jiraHelper.processTaskBranch(issueKey, customer);
-      if (!taskBranch) {
-        loggedCell.setValue("Couldn't determine the task");
-        continue;
-      }
-      if (taskBranch != 'packt') {
-        loggedCell.setValue("NOT Packt task");
-        continue;
-      }
-
-      // get time spent
-      var timeCell = range.getCell(i, timeCol);
-      var timeSpent = parseFloat(timeCell.getValue()).toFixed(2);
-      if (timeSpent == 0 || isNaN(timeSpent)) {
-        loggedCell.setValue("No time spent "+timeSpent);
-        continue;
-      }
-      loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent);
-      var secondsSpent = timeSpent * 3600;
-      loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent);
-
-      // get the starting time
-      var start = '';
-      if (startCol !== false) {
-        var start = range.getCell(i, startCol).getValue();
-      }
-      if (start.length == 3 || start.length == 4 ) {
-        var startMinute = start.substr(-2);
-        var startHour = start.substr(0,start.length-2);
-        start = 'T'+startHour+':'+startMinute+':00.000+0000';
-      } else {
-        start = 'T09:00:00.000+0000';
-      }
-
-      // get the starting date
-      var month = sheet.getRange(this.monthCell).getCell(1, 1).getValue();
-      var year = sheet.getRange(this.yearCell).getCell(1, 1).getValue();
-      var date = parseInt( range.getCell(i, dateCol).getValue() );
-      if (date == 0 || isNaN(date)) {
-        loggedCell.setValue("Invalid date value "+date);
-        continue;
-      }
-      date = ( '0' + (date) ).substr(-2) ;
-      var ISOdate = year + "-" + month + "-" + date + start;
-      loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent+"; Date "+ISOdate);
-
-      // send the data to jira
-      var response = jiraHelper.addWorklog(issueKey, ISOdate, secondsSpent);
-      if (response === true) {
-        loggedCell.setValue("LOGGED");
-      } else {
-        loggedCell.setValue("ERROR: "+response+"; \n issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent+"; Date "+datetime);
-      }
+      timeSheet.logTimeOfRow(i);
     }
   },
+
+  logTimeOfRow: function(rowNumber)
+  {
+    // grab cells to be used for writing and reading
+
+    var timesheetCells = {};
+    for (var colName in dataHelper.timeSheetCols) {
+      timesheetCells[colName.replace('Col', '')] = timeSheet.activeRange.getCell(dataHelper.timeSheetCols[colName]);
+    }
+
+    var bluetelCells = {};
+    for (var colName in dataHelper.bluetelCols) {
+      bluetelCells[colName.replace('Col', '')] = timeSheet.activeRange.getCell(dataHelper.bluetelCols[colName]);
+    }
+
+    // gather data
+
+    var issueKey = timesheetCells.task.getValue();
+    if (issueKey.indexOf("-") < 0) {
+      if (issueKey.length > 0 ) {
+        bluetelCells.project.setValue("Bluetel");
+      }
+      continue;
+    }
+
+    var title = taskTitle(issueKey);
+    var project = getProject(issueKey);
+
+    var taskData = dataHelper.getTaskData();
+    var hoursSpent = timesheetCells.decimalHour.getValue();
+    var minutesSpent = hoursSpent * 60;
+    var secondsSpent = minutesSpent * 60;
+
+    loggedCell.setValue("LOGGING " + issueKey);
+
+    // fill bluetel templatefields
+    bluetelCells.date.setValue(  );
+    bluetelCells.project.setValue(  );
+    bluetelCells.task.setValue(  );
+    bluetelCells.time.setValue( hoursSpent );
+
+
+
+    // fill task info
+
+    timeSheet.activeRange.getCell(rowNumber, bltTaskCol).setValue(issueKey+' '+title);
+
+    timeSheet.activeRange.getCell(rowNumber, projectCol).setValue(project);
+
+    var taskBranch = jiraHelper.processTaskBranch(issueKey, customer);
+    if (!taskBranch) {
+      loggedCell.setValue("Couldn't determine the task");
+      continue;
+    }
+    if (taskBranch != 'packt') {
+      loggedCell.setValue("NOT Packt task");
+      continue;
+    }
+
+    // get time spent
+    var timeCell = timeSheet.activeRange.getCell(rowNumber, timeCol);
+    var timeSpent = parseFloat(timeCell.getValue()).toFixed(2);
+    if (timeSpent == 0 || isNaN(timeSpent)) {
+      loggedCell.setValue("No time spent "+timeSpent);
+      continue;
+    }
+    loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent);
+    var secondsSpent = timeSpent * 3600;
+    loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent);
+
+    // get the starting time
+    var start = '';
+    if (startCol !== false) {
+      var start = timeSheet.activeRange.getCell(rowNumber, startCol).getValue();
+    }
+    if (start.length == 3 || start.length == 4 ) {
+      var startMinute = start.substr(-2);
+      var startHour = start.substr(0,start.length-2);
+      start = 'T'+startHour+':'+startMinute+':00.000+0000';
+    } else {
+      start = 'T09:00:00.000+0000';
+    }
+
+    // get the starting date
+    var month = timeSheet.activeSheet.getRange(this.monthCell).getCell(1, 1).getValue();
+    var year = timeSheet.activeSheet.getRange(this.yearCell).getCell(1, 1).getValue();
+    var date = parseInt( timeSheet.activeRange.getCell(rowNumber, dateCol).getValue() );
+    if (date == 0 || isNaN(date)) {
+      loggedCell.setValue("Invalid date value "+date);
+      continue;
+    }
+    date = ( '0' + (date) ).substr(-2) ;
+    var ISOdate = year + "-" + month + "-" + date + start;
+    loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent+"; Date "+ISOdate);
+
+    // send the data to jira
+    var response = jiraHelper.addWorklog(issueKey, ISOdate, secondsSpent);
+    if (response === true) {
+      loggedCell.setValue("LOGGED");
+    } else {
+      loggedCell.setValue("ERROR: "+response+"; \n issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent+"; Date "+datetime);
+    }
+  },
+
+
+  // =========================================
 
   jiraRequest: function(resource, data, request) {
     if (!this.taskBranch) {

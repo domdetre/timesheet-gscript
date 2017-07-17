@@ -1,6 +1,6 @@
 var timeSheet =
 {
-  onCustomEdit: function ()
+  getTaskInfo: function ()
   {
     this.sheet = SpreadsheetApp.getActiveSheet();
 
@@ -172,50 +172,33 @@ var timeSheet =
   logTimeOfRow: function(rowNumber)
   {
     // grab cells to be used for writing and reading
-
-    var timesheetCells = {};
-    for (var colName in dataHelper.timeSheetCols) {
-      timesheetCells[colName.replace('Col', '')] = timeSheet.activeRange.getCell(dataHelper.timeSheetCols[colName]);
-    }
-
-    var bluetelCells = {};
-    for (var colName in dataHelper.bluetelCols) {
-      bluetelCells[colName.replace('Col', '')] = timeSheet.activeRange.getCell(dataHelper.bluetelCols[colName]);
-    }
+    var cells = timeSheet.getCellsOfRowOfRange(rowNumber);
 
     // gather data
+    var data = timeSheet.getDataOfCells(cells);
 
-    var issueKey = timesheetCells.task.getValue();
+
     if (issueKey.indexOf("-") < 0) {
       if (issueKey.length > 0 ) {
-        bluetelCells.project.setValue("Bluetel");
+        cells.bluetel.project.setValue("Bluetel");
       }
       continue;
     }
 
-    var title = taskTitle(issueKey);
-    var project = getProject(issueKey);
-
-    var taskData = dataHelper.getTaskData();
-    var hoursSpent = timesheetCells.decimalHour.getValue();
-    var minutesSpent = hoursSpent * 60;
-    var secondsSpent = minutesSpent * 60;
-
     loggedCell.setValue("LOGGING " + issueKey);
 
     // fill bluetel templatefields
-    bluetelCells.date.setValue(  );
-    bluetelCells.project.setValue(  );
-    bluetelCells.task.setValue(  );
-    bluetelCells.time.setValue( hoursSpent );
+
+    cells.bluetel.date.setValue( daydate );
+    cells.bluetel.project.setValue( project );
+    cells.bluetel.task.setValue( issueKey + ' ' + title );
+    cells.bluetel.time.setValue( hoursSpent );
+
 
 
 
     // fill task info
 
-    timeSheet.activeRange.getCell(rowNumber, bltTaskCol).setValue(issueKey+' '+title);
-
-    timeSheet.activeRange.getCell(rowNumber, projectCol).setValue(project);
 
     var taskBranch = jiraHelper.processTaskBranch(issueKey, customer);
     if (!taskBranch) {
@@ -271,6 +254,46 @@ var timeSheet =
       loggedCell.setValue("ERROR: "+response+"; \n issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent+"; Date "+datetime);
     }
   },
+
+  getCellsOfRowOfRange: function(rowNumber)
+  {
+    var cells = {bluetel:{}, timesheet:{}};
+
+    for (var colName in dataHelper.timeSheetCols) {
+      cells.timesheet[colName.replace('Col', '')] = timeSheet.activeRange.getCell(rowNumber, dataHelper.timeSheetCols[colName]);
+    }
+
+    for (var colName in dataHelper.bluetelCols) {
+      cells.bluetel[colName.replace('Col', '')] = timeSheet.activeRange.getCell(rowNumber, dataHelper.bluetelCols[colName]);
+    }
+
+    return cells;
+  }
+
+  getDataOfCells: function(cells)
+  {
+    var data = {};
+
+    data.taskKey = cells.timesheet.task.getValue();
+    data.taskTitle = taskTitle(data.taskKey);
+    data.projectName = dataHelper.getProjectName(data.taskKey);
+
+    data.dateNumber = cells.timesheet.date.getValue();
+    data.monthNumber = dataHelper.monthNumber;
+    data.yearNumber = dataHelper.yearNumber;
+
+    data.taskData = dataHelper.getTaskData();
+
+    data.hoursSpent = cells.timesheet.decimalHour.getValue();
+    data.minutesSpent = hoursSpent * 60;
+    data.secondsSpent = minutesSpent * 60;
+
+    data.startTime = ('0000' + cells.timesheet.startTime).substr(-4);
+    data.startHour = data.startTime.substr(0,2);
+    data.startMinute = data.startTime.substr(-2);
+
+    return data;
+  }
 
 
   // =========================================

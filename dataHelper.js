@@ -2,12 +2,11 @@ var dataHelper = {
   dataSheet: SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ScriptData'),
   dataStartRow: 3,
 
-  taskPrefixCol: 'A',
-  taskProjectCol: 'B',
-  taskJiraGroupCol: 'C',
+  yearCell: 'H1',
+  monthCell: 'I1',
 
+  taskPrefixCol: 'A',
   jiraGroupCol: 'E',
-  jiraUrlCol: 'F',
 
   jiraUrls: {},
 
@@ -27,7 +26,7 @@ var dataHelper = {
     // TODO: it will take the current month and current year yet, so it's no good for logging previous months!! Needs to be improved
     dateCol: 'L',
     // Optional: this will be col of start time. if you empty out it will skip it and use 9:00 AM GMT as a start time for every task
-    startCol: 'J',
+    startTimeCol: 'J',
 
     // Recommended: this will be col of the output of this logger
     logCol: 'O',
@@ -43,6 +42,11 @@ var dataHelper = {
     detailsCol: 'E',
     overTimeCol: 'F',
   },
+
+  taskProjectRelations: {},
+
+  jiraUser:'',
+  jiraPass:'',
 
   init: function() {
     var convertLetters = ['taskPrefixCol', 'taskProjectCol', 'taskJiraGroupCol', 'jiraGroupCol', 'jiraUrlCol'];
@@ -61,6 +65,9 @@ var dataHelper = {
     for (var timeSheetColName in dataHelper.bluetelCols) {
       dataHelper.bluetelCols[timeSheetColName] = dataHelper.letterToColumn(dataHelper.bluetelCols[timeSheetColName]);
     }
+
+    dataHelper.yearNumber = dataHelper.dataSheet.getRange(dataHelper.yearCell).getValues()[0][0];
+    dataHelper.monthNumber = dataHelper.dataSheet.getRange(dataHelper.monthCell).getValues()[0][0];
   },
 
   getUserPass() {
@@ -74,21 +81,21 @@ var dataHelper = {
   },
 
   readJiraUrls: function () {
-    var jiraUrls = {};
-    var numCols = Math.abs(dataHelper.jiraGroupCol - dataHelper.jiraUrlCol);
-    var startColNumber = Math.min(dataHelper.jiraGroupCol, dataHelper.jiraUrlCol);
-    var jiraGroupColIndex = dataHelper.jiraGroupCol - startColNumber;
-    var jiraUrlColIndex = dataHelper.jiraUrlCol - startColNumber;
+    dataHelper.jiraUrls = {};
 
-    var jiraDataRange = dataHelper.dataSheet.getRange(dataHelper.dataStartRow, dataHelper.jiraGroupCol, 1, numCols);
-    var jiraDataValues = jiraDataRange.getValues();
-    for (var row in jiraDataValues) {
-      jiraUrls[ jiraDataValues[jiraGroupColIndex] ] = jiraDataValues[jiraUrlColIndex]
-    }
+    var rowNumber = dataHelper.dataStartRow;
+    do {
+      var values = dataHelper.dataSheet.getRange(rowNumber, dataHelper.jiraGroupCol, 1, 2).getValues();
+      dataHelper.jiraUrls[ values[0][0] ] = values[0][1];
+    } while(values[0][0].length);
   },
 
   readTasksData: function () {
-    var jiraDataRange = dataHelper.dataSheet.getRange(dataHelper.dataStartRow, dataHelper.taskPrefixCol, 1, numCols);
+    var rowNumber = dataHelper.dataStartRow;
+    do {
+      var values = dataHelper.dataSheet.getRange(rowNumber, dataHelper.taskPrefixCol, 1, 3).getValues();
+      dataHelper.taskProjectRelations[values[0][0]] = {projectName: values[0][1], jiraGroup: values[0][2]};
+    } while(values[0][0].length);
   }
 
   columnToLetter: function(column)
@@ -121,7 +128,35 @@ var dataHelper = {
     return column;
   },
 
+  function getProjectName(taskNumber) {
+    if (taskNumber.indexOf("-") < 1) {
+      return dataHelper.taskProjectRelations['DEFAULT'];
+    }
 
+    var taskPrefix = taskNumber.split("-")[0];
+    var projectName = dataHelper.taskProjectRelations[taskPrefix].projectName;
+    if (projectName) {
+      return projectName;
+    }
+
+    return '';
+  },
+
+  getTaskTitle(taskNumber) {
+    if (taskNumber.indexOf("-") < 1) {
+      return '';
+    }
+
+    var taskPrefix = taskNumber.split("-")[0];
+    var jiraGroup = dataHelper.taskProjectRelations[taskPrefix].jiraGroup;
+    if (!jiraGroup) {
+      return '';
+    }
+
+    var jiraUrl = dataHelper.jiraUrls[jiraGroup]
+    taskInfo = jiraHelper.getTaskInfo(jiraUrl, taskNumber);
+    return taskInfo.fields.summary;
+  }
 }
 
 dataHelper.init();

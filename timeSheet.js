@@ -1,5 +1,12 @@
 var timeSheet =
 {
+  activeShett: null,
+  activeRange: null,
+  activeRow: {
+    number: 0,
+    cells: {bluetel:{}, timesheet:{}},
+  },
+
   getTaskInfo: function ()
   {
     this.sheet = SpreadsheetApp.getActiveSheet();
@@ -164,196 +171,106 @@ var timeSheet =
     timeSheet.activeRange = sheet.getActiveRange();
     var rowCount = range.getNumRows();
 
-    for (var i = 1; i <= rowCount; i++) {
-      timeSheet.logTimeOfRow(i);
+    for (var rowNumber = 1; rowNumber <= rowCount; rowNumber++) {
+      timeSheet.activeRow.number = rowNumber;
+      timeSheet.logTimeOfActiveRow();
     }
   },
 
-  logTimeOfRow: function(rowNumber)
+  logTimeOfActiveRow: function()
   {
     // grab cells to be used for writing and reading
-    var cells = timeSheet.getCellsOfRowOfRange(rowNumber);
+    var cells = timeSheet.getCellsOfActiveRow();
 
     // gather data
-    var data = timeSheet.getDataOfCells(cells);
-
-
-    if (issueKey.indexOf("-") < 0) {
-      if (issueKey.length > 0 ) {
-        cells.bluetel.project.setValue("Bluetel");
-      }
-      continue;
-    }
-
-    loggedCell.setValue("LOGGING " + issueKey);
+    var data = timeSheet.getDataOfCells();
 
     // fill bluetel templatefields
+    cells.bluetel.date.setValue(data.dateString);
+    cells.bluetel.project.setValue(data.task.projectName);
+    cells.bluetel.task.setValue(data.task.key + ' ' + data.task.title);
+    cells.bluetel.time.setValue(data.hoursSpent);
 
-    cells.bluetel.date.setValue( daydate );
-    cells.bluetel.project.setValue( project );
-    cells.bluetel.task.setValue( issueKey + ' ' + title );
-    cells.bluetel.time.setValue( hoursSpent );
-
-
-
-
-    // fill task info
-
-
-    var taskBranch = jiraHelper.processTaskBranch(issueKey, customer);
-    if (!taskBranch) {
-      loggedCell.setValue("Couldn't determine the task");
-      continue;
-    }
-    if (taskBranch != 'packt') {
-      loggedCell.setValue("NOT Packt task");
+    // in case it's the default entry, stop processing
+    if (data.projectName === dataHelper.taskProjectRelations['DEFAULT']) {
       continue;
     }
 
-    // get time spent
-    var timeCell = timeSheet.activeRange.getCell(rowNumber, timeCol);
-    var timeSpent = parseFloat(timeCell.getValue()).toFixed(2);
-    if (timeSpent == 0 || isNaN(timeSpent)) {
-      loggedCell.setValue("No time spent "+timeSpent);
+    timeSheet.setActiveLogMessage('LOGGING: ' + data.task.key + ' JiraGroup: ' + data.task.jiraGroup);
+
+    // if the hourspent is invalid then stop
+    if (!data.hoursSpent || isNaN(data.hoursSpent)) {
+      timeSheet.setActiveLogMessage('timeSpent is ZERO, stopping.');
       continue;
     }
-    loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent);
-    var secondsSpent = timeSpent * 3600;
-    loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent);
 
-    // get the starting time
-    var start = '';
-    if (startCol !== false) {
-      var start = timeSheet.activeRange.getCell(rowNumber, startCol).getValue();
-    }
-    if (start.length == 3 || start.length == 4 ) {
-      var startMinute = start.substr(-2);
-      var startHour = start.substr(0,start.length-2);
-      start = 'T'+startHour+':'+startMinute+':00.000+0000';
-    } else {
-      start = 'T09:00:00.000+0000';
+    if (!data.dateNumber || !data.monthNumber || !data.yearNumber || isNaN(data.dateNumber) || isNaN(data.monthNumber) || isNaN(data.yearNumber)) {
+      timeSheet.setActiveLogMessage('invalid date value, stopping.');
     }
 
-    // get the starting date
-    var month = timeSheet.activeSheet.getRange(this.monthCell).getCell(1, 1).getValue();
-    var year = timeSheet.activeSheet.getRange(this.yearCell).getCell(1, 1).getValue();
-    var date = parseInt( timeSheet.activeRange.getCell(rowNumber, dateCol).getValue() );
-    if (date == 0 || isNaN(date)) {
-      loggedCell.setValue("Invalid date value "+date);
-      continue;
-    }
-    date = ( '0' + (date) ).substr(-2) ;
-    var ISOdate = year + "-" + month + "-" + date + start;
-    loggedCell.setValue("LOGGING: issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent+"; Date "+ISOdate);
+    timeSheet.setActiveLogMessage('hours spent: ' + data.hoursSpent + ' seconds spent: ' + data.secondsSpent);
+    timeSheet.setActiveLogMessage('ISOdate: ' + data.dateTimeIso);
 
     // send the data to jira
-    var response = jiraHelper.addWorklog(issueKey, ISOdate, secondsSpent);
+    var response = jiraHelper.addWorklog(data.task.jiraUrl, data.task.key, data.dateTimeIso, data.secondsSpent, data.description);
     if (response === true) {
-      loggedCell.setValue("LOGGED");
+      timeSheet.setActiveLogMessage("LOGGED");
     } else {
-      loggedCell.setValue("ERROR: "+response+"; \n issue "+issueKey+"; time spent "+timeSpent+"; seconds spent "+secondsSpent+"; Date "+datetime);
+      timeSheet.setActiveLogMessage("ERROR: " + response);
     }
   },
 
-  getCellsOfRowOfRange: function(rowNumber)
+  setActiveLogMessage: function(message)
   {
-    var cells = {bluetel:{}, timesheet:{}};
+    var currentMessage = timeSheet.activeRow.cells.log.getValue();
+    if (currentMessage) {
+      currentMessage += '\n';
+    }
 
+    timeSheet.activeRow.cells.log.setValue(currentMessage + message);
+  }
+
+  getCellsOfActiveRow: function()
+  {
     for (var colName in dataHelper.timeSheetCols) {
-      cells.timesheet[colName.replace('Col', '')] = timeSheet.activeRange.getCell(rowNumber, dataHelper.timeSheetCols[colName]);
+      timeSheet.activeRow.cells.timesheet[colName.replace('Col', '')] =
+        timeSheet.activeRange.getCell(timeSheet.activeRow.number, dataHelper.timeSheetCols[colName]);
     }
 
     for (var colName in dataHelper.bluetelCols) {
-      cells.bluetel[colName.replace('Col', '')] = timeSheet.activeRange.getCell(rowNumber, dataHelper.bluetelCols[colName]);
+      timeSheet.activeRow.cells.bluetel[colName.replace('Col', '')] =
+        timeSheet.activeRange.getCell(timeSheet.activeRow.number, dataHelper.bluetelCols[colName]);
     }
 
-    return cells;
+    return timeSheet.activeRow.cells;
   }
 
-  getDataOfCells: function(cells)
+  getDataOfCells: function()
   {
-    var data = {};
+    var data = {
+      task: dataHelper.getTaskData(timeSheet.activeRow.cells.timesheet.task.getValue()),
+      description: timeSheet.activeRow.cells.timesheet.description.getValue(),
+    };
 
-    data.taskKey = cells.timesheet.task.getValue();
-    data.taskTitle = taskTitle(data.taskKey);
-    data.projectName = dataHelper.getProjectName(data.taskKey);
+    data.dateNumber = parseInt(timeSheet.activeRow.cells.timesheet.date.getValue());
+    data.monthNumber = parseInt(dataHelper.monthNumber);
+    data.yearNumber = parseInt(dataHelper.yearNumber);
 
-    data.dateNumber = cells.timesheet.date.getValue();
-    data.monthNumber = dataHelper.monthNumber;
-    data.yearNumber = dataHelper.yearNumber;
-
-    data.taskData = dataHelper.getTaskData();
-
-    data.hoursSpent = cells.timesheet.decimalHour.getValue();
+    data.hoursSpent = parseFloat(timeSheet.activeRow.cells.timesheet.decimalHour.getValue()).toFixed(2);
     data.minutesSpent = hoursSpent * 60;
     data.secondsSpent = minutesSpent * 60;
 
-    data.startTime = ('0000' + cells.timesheet.startTime).substr(-4);
+    data.startTime = ('0000' + timeSheet.activeRow.cells.timesheet.startTime).substr(-4);
     data.startHour = data.startTime.substr(0,2);
     data.startMinute = data.startTime.substr(-2);
 
+    data.dateString = data.dateNumber + '/' + data.monthNumber + '/' = data.yearNumber;
+    data.dateTime = new Date(
+      data.yearNumber + '-' + data.monthNumber + '-' + data.dateNumber + ' ' + data.startHour + ':' + data.startMinute
+    );
+    data.dateTimeIso = data.dateTime.toISOString();
+
+    timeSheet.activeRow.data = data;
     return data;
   }
-
-
-  // =========================================
-
-  jiraRequest: function(resource, data, request) {
-    if (!this.taskBranch) {
-      return false;
-    }
-
-    if(this.username.length < 1) {
-      return false;
-    }
-
-    var postData = JSON.stringify(data);
-    var postHeaders = {
-      "Authorization" : "Basic " + Utilities.base64Encode(this.username + ':' + this.password),
-      "Content-Type":"application/json"
-    }
-
-    var params = {
-      "method": request,
-      "headers": postHeaders,
-      "payload": postData,
-    };
-
-    var url = this.url[this.taskBranch]+"/rest/api/latest/" + resource;
-    var httpResponse = UrlFetchApp.fetch(url, params);
-    return httpResponse.getResponseCode();
-  },
-
-  searchIssueByKey: function(issueKey) {
-    var jqlData = {
-      "jql": 'issueKey = ' + issueKey,
-    };
-
-    var response = this.jiraRequest('search', jqlData, 'post');
-    return response.issues[0].fields;
-  },
-
-  getIssueByKey: function(issueKey) {
-    this.event.range.setNote('Processing task B1 '+this.task);
-    var url = this.url['bluetel'];
-    if (this.taskIsPackt) {
-      url = this.url['packt'];
-    }
-
-    this.event.range.setNote('Processing task B2 '+url);
-
-    url += "/rest/api/2/issue/" + issueKey;
-    var postHeaders = {
-      "Authorization" : "Basic " + Utilities.base64Encode(this.username + ':' + this.password),
-      "Content-Type":"application/json"
-    };
-
-    this.event.range.setNote('Processing task B3 '+this.username);
-
-    var response = UrlFetchApp.fetch(url, {method:"GET",headers:postHeaders});
-
-    this.event.range.setNote('Processing task B4 '+this.username);
-    return JSON.parse(response);
-  },
-
 };

@@ -48,7 +48,8 @@ var dataHelper = {
   jiraUser:'',
   jiraPass:'',
 
-  init: function() {
+  init: function()
+  {
     var convertLetters = ['taskPrefixCol', 'taskProjectCol', 'taskJiraGroupCol', 'jiraGroupCol', 'jiraUrlCol'];
     for (var convertLetterCol in convertLetters) {
       dataHelper[convertLetterCol] = dataHelper.letterToColumn(dataHelper[convertLetterCol]);
@@ -70,17 +71,20 @@ var dataHelper = {
     dataHelper.monthNumber = dataHelper.dataSheet.getRange(dataHelper.monthCell).getValues()[0][0];
   },
 
-  getUserPass() {
+  getUserPass()
+  {
     var values = dataHelper.dataSheet.getRange("Z1:Z2").getValues();
     dataHelper.jiraUser = values[0][0];
     dataHelper.jiraPass = values[0][1];
   }
 
-  getTaskData: function (taskNumber) {
+  getTaskData: function (taskNumber)
+  {
 
   },
 
-  readJiraUrls: function () {
+  readJiraUrls: function ()
+  {
     dataHelper.jiraUrls = {};
 
     var rowNumber = dataHelper.dataStartRow;
@@ -90,7 +94,8 @@ var dataHelper = {
     } while(values[0][0].length);
   },
 
-  readTasksData: function () {
+  readTasksData: function ()
+  {
     var rowNumber = dataHelper.dataStartRow;
     do {
       var values = dataHelper.dataSheet.getRange(rowNumber, dataHelper.taskPrefixCol, 1, 3).getValues();
@@ -128,34 +133,69 @@ var dataHelper = {
     return column;
   },
 
-  function getProjectName(taskNumber) {
-    if (taskNumber.indexOf("-") < 1) {
-      return dataHelper.taskProjectRelations['DEFAULT'];
+  getProjectName: function(taskData)
+  {
+    if (typeof(taskData) === 'string') {
+      taskData = dataHelper.getTaskData(taskData);
     }
 
-    var taskPrefix = taskNumber.split("-")[0];
-    var projectName = dataHelper.taskProjectRelations[taskPrefix].projectName;
-    if (projectName) {
-      return projectName;
-    }
-
-    return '';
+    return taskData.projectName;
   },
 
-  getTaskTitle(taskNumber) {
-    if (taskNumber.indexOf("-") < 1) {
-      return '';
+  getTaskTitle: function(taskData)
+  {
+    if (typeof(taskData) === 'string') {
+      taskData = dataHelper.getTaskData(taskData);
     }
 
-    var taskPrefix = taskNumber.split("-")[0];
-    var jiraGroup = dataHelper.taskProjectRelations[taskPrefix].jiraGroup;
-    if (!jiraGroup) {
-      return '';
+    return taskData.title;
+  },
+
+  isJiraTask: function(taskKey)
+  {
+    if (taskKey.indexOf("-") < 1) {
+      return false;
     }
 
-    var jiraUrl = dataHelper.jiraUrls[jiraGroup]
-    taskInfo = jiraHelper.getTaskInfo(jiraUrl, taskNumber);
-    return taskInfo.fields.summary;
+    return true;
+  },
+
+  getTaskData: function(taskKey)
+  {
+    if (this.taskData[taskKey]) {
+      return this.taskData[taskKey];
+    }
+
+    this.taskData[taskKey] = {
+      key: taskKey,
+      jiraGroup: 'DEFAULT',
+      prefix: '',
+      title: '',
+      jiraUrl: '',
+      projectName: '',
+      jiraData: null,
+      // TODO implement expiry of local cache
+      date: Date.now(),
+    };
+
+    if (!dataHelper.isJiraTask(taskKey)) {
+      this.taskData[taskKey].jiraGroup = 'DEFAULT';
+      this.taskData[taskKey].projectName = dataHelper.taskProjectRelations['DEFAULT'];
+      return this.taskData[taskKey];
+    }
+
+    this.taskData[taskKey].prefix = taskKey.split("-")[0];
+    this.taskData[taskKey].jiraGroup = dataHelper.taskProjectRelations[this.taskData[taskKey].prefix].jiraGroup;
+    this.taskData[taskKey].projectName = dataHelper.taskProjectRelations[this.taskData[taskKey].prefix].projectName;
+    this.taskData[taskKey].jiraUrl = dataHelper.jiraUrls[this.taskData[taskKey].jiraGroup];
+
+    if (this.taskData[taskKey].jiraUrl) {
+      var response = jiraHelper.getTaskInfo(jiraUrl, taskKey);
+      this.taskData[taskKey].jiraData = response.fields;
+      this.taskData[taskKey].title = response.fields.summary;
+    }
+
+    return this.taskData[taskKey];
   }
 }
 

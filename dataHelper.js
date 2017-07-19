@@ -8,6 +8,8 @@ var dataHelper = {
   taskPrefixCol: 'A',
   jiraGroupCol: 'E',
 
+  passwordCellsNotation: "Z1:Z2";
+
   jiraUrls: {},
 
   timeSheetCols: {
@@ -50,13 +52,13 @@ var dataHelper = {
 
   init: function()
   {
-    var convertLetters = ['taskPrefixCol', 'taskProjectCol', 'taskJiraGroupCol', 'jiraGroupCol', 'jiraUrlCol'];
-    for (var convertLetterCol in convertLetters) {
+    var convertLetters = ['taskPrefixCol', 'jiraGroupCol'];
+    convertLetters.forEach(function(convertLetterCol) {
       dataHelper[convertLetterCol] = dataHelper.letterToColumn(dataHelper[convertLetterCol]);
-    }
+    });
 
     dataHelper.tasksData = dataHelper.readTasksData();
-    dataHelper.jiraUrls = dataHelper.readJiraUrls();
+    //dataHelper.jiraUrls = dataHelper.readJiraUrls();
     dataHelper.getUserPass();
 
     for (var timeSheetColName in dataHelper.timeSheetCols) {
@@ -71,16 +73,11 @@ var dataHelper = {
     dataHelper.monthNumber = dataHelper.dataSheet.getRange(dataHelper.monthCell).getValues()[0][0];
   },
 
-  getUserPass()
+  getUserPass: function()
   {
-    var values = dataHelper.dataSheet.getRange("Z1:Z2").getValues();
+    var values = dataHelper.dataSheet.getRange(dataHelper.passwordCellsNotation).getValues();
     dataHelper.jiraUser = values[0][0];
     dataHelper.jiraPass = values[0][1];
-  }
-
-  getTaskData: function (taskNumber)
-  {
-
   },
 
   readJiraUrls: function ()
@@ -100,8 +97,9 @@ var dataHelper = {
     do {
       var values = dataHelper.dataSheet.getRange(rowNumber, dataHelper.taskPrefixCol, 1, 3).getValues();
       dataHelper.taskProjectRelations[values[0][0]] = {projectName: values[0][1], jiraGroup: values[0][2]};
+      break;
     } while(values[0][0].length);
-  }
+  },
 
   columnToLetter: function(column)
   {
@@ -196,7 +194,7 @@ var dataHelper = {
     }
 
     return this.taskData[taskKey];
-  }
-}
+  },
+};
 
 dataHelper.init();

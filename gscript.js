@@ -20,18 +20,7 @@ function taskTitle(taskNumber) {
 }
 
 function getCustomer(taskNumber) {
-  if (taskNumber.indexOf("-") < 0) {
-    return "Bluetel";
-  }
-
-  var task = taskNumber.split("-");
-  var taskType = task[0];
-  var taskInfo = timeSheet.taskTypes[taskType];
-  if (taskInfo) {
-    return taskInfo[0];
-  }
-
-  return;
+  return dataHelper.getProjectName(taskNumber);
 }
 
 function getProject(taskKey) {

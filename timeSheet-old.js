@@ -1,10 +1,147 @@
 var timeSheet =
 {
-  activeSheet: null,
-  activeRange: null,
-  activeRow: {
-    number: 0,
-    cells: {bluetel:{}, timesheet:{}},
+  getTaskInfo: function ()
+  {
+    this.sheet = SpreadsheetApp.getActiveSheet();
+
+    this.activeRange = this.sheet.getActiveRange();
+
+    this.column = this.activeRange.getColumn();
+    this.columnLetter = dataHelper.columnToLetter(this.column);
+
+    this.row = this.activeRange.getRow();
+    this.cell = this.activeRange.getCell(1,1);
+
+    if (this.taskNumberColumn === this.columnLetter) {
+      this.updateDateCell(this.activeRange);
+      this.processTaskCell(this.activeRange);
+    }
+  },
+
+  onEdit: function (event)
+  {
+    this.event = event;
+    var range = event.range;
+
+    this.column = range.getColumn();
+    this.columnLetter = dataHelper.columnToLetter(this.column);
+
+    this.row = range.getRow();
+    this.cell = range.getCell(1,1);
+
+    if (this.taskNumberColumn === this.columnLetter) {
+      this.updateDateCell(range);
+      this.processTaskCell(range);
+    }
+  },
+
+  updateDateCell: function(range)
+  {
+    this.sheet = SpreadsheetApp.getActiveSheet();
+    this.dateCell = this.sheet.getRange(this.dateCol+this.row).getCell(1,1);
+    if (this.dateCell.getValue().length == 0) {
+      var d = new Date();
+      this.dateCell.setValue(d.getDate());CDP
+    }
+  },
+
+  processTaskCell: function (range)
+  {
+    this.task = this.cell.getValue();
+
+    if (this.task.indexOf("-") < 0) {
+      range.setNote('Not a task: '+this.task);
+      return;
+    }
+
+    var task = this.task.split("-");
+    if (task.length != 2) {
+      range.setNote('Not a task: '+this.task);
+      return;
+    }
+
+    this.taskType = task[0];
+    this.taskNumber = task[1];
+    this.taskInfo = this.taskTypes[this.taskType];
+
+    this.sheet = SpreadsheetApp.getActiveSheet();
+    this.rowRange = this.sheet.getRange('A'+this.row+':X'+this.row);
+
+    range.setNote('Processing task: '+this.task);
+
+    if (!this.taskInfo) {
+      range.setNote('task type not found '+this.task);
+      return;
+    }
+
+    this.taskIsPackt = this.taskInfo[0].indexOf('Packt') === 0;
+    range.setNote('Processing task 6');
+
+    if (!this.taskIsPackt) {
+      range.setNote('Not Packt task '+this.task);
+      return;
+    }
+
+    range.setNote('Processing task 7 '+this.task);
+
+    var taskInfo = this.getIssueByKey(this.task);
+    range.setNote('Processing task 8: '+this.task);
+    range.setNote('Processing task 9: '+taskInfo);
+    this.sheet.getRange(this.taskInfoColumn+this.row).getCell().setValue(this.task+" "+taskInfo.fields.summary);
+  },
+
+
+  fillCustomerProjectInfo: function ()
+  {
+    this.taskKey = this.event.range.getValue().toUpperCase();
+    var taskType = this.taskKey.split('-')[0];
+    this.row = range.getRow();
+
+    taskInfo = this.taskTypes[taskType];
+
+    if (taskInfo) {
+      this.sheet.getRange(this.customerCol+this.row).setValue(taskInfo[0]);
+      this.sheet.getRange(this.projectCol+this.row).setValue(taskInfo[1]);
+    }
+
+    SpreadsheetApp.getActiveSheet().getActiveRange().getCell(i, loggedCol).setValue(taskInfo[0]);
+  },
+
+  fillTaskInfo: function ()
+  {
+    this.sheet.getRange(this.taskInfoColumn+this.row).setValue("getting task info ...");
+
+    this.taskKey = this.event.range.getValue().toUpperCase();
+    this.row = range.getRow();
+
+    // non packt tasks
+    if (!timeSheet.isTaskPackt(this.taskKey)) {
+      return;
+    }
+    // PACKT tasks
+    else {
+      this.taskInfo = jiraHelper.searchIssueByKey(this.taskKey);
+      this.sheet.getRange(this.taskInfoColumn+this.row).setValue(this.taskInfo.summary);
+      this.sheet.getRange(this.taskNumberColumn+this.row).setValue(this.taskKey);
+    }
+  },
+
+  /**
+   * Works out if task is a Packt task
+   * @param issueKey {string} issue key, task number, what have you
+   * @return {boolean} will return true if task is a Packt task
+   */
+  isTaskPackt: function(issueKey)
+  {
+    if (issueKey.substring(0,4) !== "PPUB"
+     && issueKey.substring(0,4) !== "PLIB"
+     && issueKey.substring(0,2) !== "DM"
+     && issueKey.substring(0,3) !== 'CDP'
+     && issueKey.substring(0,4) !== 'ISIS'
+     && issueKey.substring(0,2) !== 'PU') {
+      return false;
+    }
+    return true;
   },
 
   /**
@@ -120,7 +257,7 @@ var timeSheet =
     data.startHour = data.startTime.substr(0,2);
     data.startMinute = data.startTime.substr(-2);
 
-    data.dateString = data.dateNumber + '/' + data.monthNumber + '/' + data.yearNumber;
+    data.dateString = data.dateNumber + '/' + data.monthNumber + '/' = data.yearNumber;
     data.dateTime = new Date(
       data.yearNumber + '-' + data.monthNumber + '-' + data.dateNumber + ' ' + data.startHour + ':' + data.startMinute
     );
@@ -129,4 +266,4 @@ var timeSheet =
     timeSheet.activeRow.data = data;
     return data;
   },
-};
+}

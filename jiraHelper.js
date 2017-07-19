@@ -7,9 +7,11 @@ var jiraHelper = {
       "Authorization" : "Basic " + Utilities.base64Encode(dataHelper.jiraUser + ':' + dataHelper.jiraUser),
       "Content-Type":"application/json"
     };
-  }
+  },
 
-  addWorklog: function(url, taskNumber, dateTime, secondsSpent, comments) {
+  addWorklog: function(url, taskNumber, dateTime, secondsSpent, comments)
+  {
+    return url+"|"+taskNumber+"|"+dateTime+"|"+secondsSpent+"|"+comments;
     url += '/rest/api/2/issue/' + taskNumber + '/worklog'
     var data = {
       'started': dateTime,
@@ -38,5 +40,5 @@ var jiraHelper = {
       headers: jiraHelper.getPostHeaders(),
     });
     return JSON.parse(response);
-  }
+  },
 };

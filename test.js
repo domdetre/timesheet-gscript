@@ -11,6 +11,10 @@ var testSpreadSheet =
   getSheetByName: function(sheetName)
   {
     return testSheets[sheetName];
+  },
+  getActiveSheet: function()
+  {
+    return testTimeSheet;
   }
 }
 
@@ -46,7 +50,7 @@ var testSheets =
       }
 
       if (col === dataHelper.taskPrefixCol) {
-        if (row > 10 && row <= 3) {
+        if (3 <= row && row < 10) {
           return {
             getValues: function() {
               return [['CDP', 'Packt (CDP)', 'packt']];
@@ -63,5 +67,13 @@ var testSheets =
 
       return false;
     }
+  }
+}
+
+var testTimeSheet =
+{
+  getRange: function(row, col, rows, cols)
+  {
+    return false;
   }
 }

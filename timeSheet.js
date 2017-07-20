@@ -108,9 +108,12 @@ var timeSheet =
       description: timeSheet.activeRow.cells.timesheet.description.getValue(),
     };
 
+    data.yearNumber = timeSheet.activeSheet.getRange(dataHelper.yearCell).getValues()[0][0];
+    data.monthNumber = timeSheet.activeSheet.getRange(dataHelper.monthCell).getValues()[0][0];
+
     data.dateNumber = parseInt(timeSheet.activeRow.cells.timesheet.date.getValue());
-    data.monthNumber = parseInt(dataHelper.monthNumber);
-    data.yearNumber = parseInt(dataHelper.yearNumber);
+    data.monthNumber = parseInt(data.monthNumber);
+    data.yearNumber = parseInt(data.yearNumber);
 
     data.hoursSpent = parseFloat(timeSheet.activeRow.cells.timesheet.decimalHour.getValue()).toFixed(2);
     data.minutesSpent = hoursSpent * 60;
